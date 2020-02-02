@@ -23,7 +23,7 @@ Vagrant.configure("2") do |config|
 	cent.vm.network :private_network, ip: "192.168.56.102"
 	cent.vm.provider :virtualbox do |vb|
 		vb.customize ["modifyvm", :id, "--memory", 1024]
-		vb.customize ["modifyvm", :id, "--name", "db"]
+		vb.customize ["modifyvm", :id, "--name", "cent"]
 		end
 #	cent.vm.provision "shell", inline: <<-SHELL
 #		mkdir -p ~root/.ssh
