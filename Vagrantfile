@@ -9,6 +9,8 @@ Vagrant.configure("2") do |config|
 	kali.vm.provider :virtualbox do |vb|
 		vb.customize ["modifyvm", :id, "--memory", 2048]
 		vb.customize ["modifyvm", :id, "--name", "kali"]
+		vb.cpus = 2
+		vb.gui = false
 		end
 #	kali.vm.provision "shell", inline: <<-SHELL
 #		mkdir -p ~root/.ssh
@@ -24,6 +26,7 @@ Vagrant.configure("2") do |config|
 	cent.vm.provider :virtualbox do |vb|
 		vb.customize ["modifyvm", :id, "--memory", 1024]
 		vb.customize ["modifyvm", :id, "--name", "cent"]
+		vb.gui = false
 		end
 #	cent.vm.provision "shell", inline: <<-SHELL
 #		mkdir -p ~root/.ssh
