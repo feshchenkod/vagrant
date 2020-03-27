@@ -1,0 +1,34 @@
+version: "3"
+services:
+  server:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 50M
+        reservations:
+          cpus: '0.25'
+          memory: 20M
+    build: /home/vagrant/server
+    command: python /home/otus/server/signal_server.py
+    ports:
+      - 8088:8088
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8088 || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 3
+    restart: always
+#  client:
+#    build: /home/vagrant/client
+#    command: python ./signal_client.py
+#    network_mode: host
+#    depends_on:
+#      - server
+#    healthcheck:
+#      test: ["CMD-SHELL", "curl -f http://localhost:8088 || exit 1"]
+#      interval: 5s
+#      timeout: 10s
+#      retries: 3

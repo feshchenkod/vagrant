@@ -1,0 +1,192 @@
+---
+- hosts: all
+  gather_facts: false
+  sudo: yes
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  tasks:
+  - name: usermod
+    command: "{{ item }}"
+    with_items:
+      - usermod -aG docker vagrant
+  - name: isntall packages
+    apt: update_cache=yes pkg={{ item }} state=present #allow_unauthenticated=yes
+    with_items:
+      - 'auditd'
+  - name: audit.rules
+    blockinfile:
+      path: /etc/audit/rules.d/audit.rules
+      block: |
+        -w /usr/bin/docker -p wa
+        -w /usr/bin/dockerd -p wa
+        -w /var/lib/docker -p wa
+        -w /etc/docker -p wa
+        -w /lib/systemd/system/docker.service -p wa
+        -w /lib/systemd/system/docker.socket -p wa
+        -w /etc/default/docker -p wa
+        -w /etc/docker/daemon.json -p wa
+        -w /usr/bin/docker-containerd -p wa
+        -w /usr/bin/containerd -k docker
+        -w /usr/bin/docker-runc -p wa
+  - name: mkdir ssl
+    file: path=/root/.docker state=directory
+  - name: gen CA cert
+    command: "{{ item }}"
+    args:
+      chdir: /root/.docker
+    with_items:
+      - openssl genrsa -out ca-key.pem 4096
+      - openssl req -x509 -new -nodes -key ca-key.pem -days 365 -out ca.pem -subj '/CN=docker-CA'
+  - name: openssl conf server
+    blockinfile:
+      path: /root/.docker/openssl.cnf
+      block: |
+        [added]
+        
+            [req]
+            req_extensions = v3_req
+            distinguished_name = req_distinguished_name
+            [req_distinguished_name]
+            [ v3_req ]
+            basicConstraints = CA:FALSE
+            keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+            extendedKeyUsage = serverAuth, clientAuth
+            subjectAltName = @alt_names
+            
+            [alt_names]
+            DNS.1 = localhost
+            IP.1 = 127.0.0.1
+      create: yes
+      marker: ""
+  - name: gen SERVER cert
+    command: "{{ item }}"
+    args:
+      chdir: /root/.docker
+    with_items:
+      - openssl genrsa -out docker-key.pem 4096
+      - openssl req -new -key docker-key.pem -out docker-cert.csr -subj '/CN=docker-daemon' -config openssl.cnf
+      - openssl x509 -req -in docker-cert.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -out docker-cert.pem -days 365 -extensions v3_req -extfile openssl.cnf
+  - name: openssl conf client
+    blockinfile:
+      path: /root/.docker/openssl-client.cnf
+      block: |
+        [added]
+
+          [req]
+          req_extensions = v3_req
+          distinguished_name = req_distinguished_name
+          [req_distinguished_name]
+          [ v3_req]
+          basicConstraints = CA:FALSE
+          keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+          extendedKeyUsage = serverAuth, clientAuth
+      create: yes
+      marker: ""
+  - name: gen Client cert
+    command: "{{ item }}"
+    args:
+      chdir: /root/.docker
+    with_items:
+      - openssl genrsa -out client-key.pem 4096
+      - openssl req -new -key client-key.pem -out client-cert.csr -subj '/CN=docker-client' -config openssl.cnf
+      - openssl x509 -req -in client-cert.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -out client-cert.pem -days 365 -extensions v3_req -extfile openssl-client.cnf
+  - name: chmod cert
+    command: "{{ item }}"
+    with_items:
+        - chmod 444 /root/.docker/ca.pem
+        - chmod 444 /root/.docker/docker-cert.pem
+        - chmod 400 /root/.docker/ca-key.pem 
+        - chmod 400 /root/.docker/docker-key.pem
+        - chmod 444 /root/.docker/client-cert.pem
+        - chmod 400 /root/.docker/client-key.pem
+        - chown -R vagrant:vagrant /home/vagrant/.docker
+  - name: mkdir policies
+    file: path=/etc/docker/policies state=directory
+  - name: add authz
+    lineinfile: line='package docker.authz' dest=/etc/docker/policies/authz.rego create=yes
+  - name: add authz
+    lineinfile: line='allow = true' dest=/etc/docker/policies/authz.rego
+  - name: daemon.json
+    blockinfile:
+      path: /etc/docker/daemon.json
+      block: |
+        {
+            "icc": false,
+            "userns-remap": "default",
+            "live-restore": true,
+            "userland-proxy": false,
+            "no-new-privileges": true,
+            "storage-driver": "overlay2",
+            "tls": true,
+            "tlsverify": true,
+            "tlscacert": "/root/.docker/ca.pem",
+            "tlscert": "/root/.docker/docker-cert.pem",
+            "tlskey": "/root/.docker/docker-key.pem",
+            "log-driver": "syslog",
+            "log-opts": {
+              "syslog-address": "udp://127.0.0.1:514"}
+        }
+      create: yes
+      marker: ""
+  - name: Remove blank lines blockinfile put in
+    lineinfile :
+      path: /etc/docker/daemon.json
+      state: absent
+      regexp: '^$'
+  - name: reload docker
+    systemd:
+      state: restarted
+      name: docker
+  - name: install docker auth plugin
+    command: 'docker plugin install --grant-all-permissions --alias opa-docker-authz openpolicyagent/opa-docker-authz-v2:0.5 opa-args="-policy-file /etc/docker/policies/authz.rego"'
+  - name: restart auditd
+    systemd:
+      state: restarted
+      enabled: yes
+      name: auditd
+  - name: rsyslog.config
+    lineinfile: line='module(load="imudp")' dest=/etc/rsyslog.conf
+  - name: rsyslog.config
+    lineinfile: line='module(load="imudp")' dest=/etc/rsyslog.conf
+  - name: start rsyslog
+    systemd:
+      state: restarted
+      enabled: yes
+      name: rsyslog
+  - name: Remove file
+    file: path=/etc/docker/daemon.json state=absent
+  - name: daemon.json
+    blockinfile:
+      path: /etc/docker/daemon.json
+      block: |
+        {
+            "icc": false,
+            "userns-remap": "default",
+            "live-restore": true,
+            "userland-proxy": false,
+            "no-new-privileges": true,
+            "storage-driver": "overlay2",
+            "tls": true,
+            "tlsverify": true,
+            "tlscacert": "/root/.docker/ca.pem",
+            "tlscert": "/root/.docker/docker-cert.pem",
+            "tlskey": "/root/.docker/docker-key.pem",
+            "log-driver": "syslog",
+            "log-opts": {
+              "syslog-address": "udp://127.0.0.1:514"
+            },
+            "authorization-plugins": ["opa-docker-authz"]
+        }
+      create: yes
+      marker: ""
+  - name: Remove blank lines blockinfile put in
+    lineinfile :
+      path: /etc/docker/daemon.json
+      state: absent
+      regexp: '^$'
+  - name: reload docker
+    systemd:
+      state: restarted
+      name: docker
+  - name: add env
+    lineinfile: line='DOCKER_CONTENT_TRUST=1' dest=/etc/environment

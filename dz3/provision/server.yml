@@ -1,0 +1,30 @@
+---
+- hosts: all
+  gather_facts: false
+  sudo: yes
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  tasks:
+  - name: mkfs disk.vdi
+    filesystem: fstype=ext4 dev=/dev/sdc
+  - name: mkdir docker
+    file: path=/var/lib/docker state=directory
+#  - name: mkdir mnt
+#    file: path=/mnt/docker state=directory
+  - name: mkdir service
+    file: path=/home/vagrant/server state=directory
+  - name: mkdir client
+    file: path=/home/vagrant/client state=directory
+  - name: add fstab
+    lineinfile: line='/dev/sdc /var/lib/docker ext4 defaults 0 0' dest=/etc/fstab
+#  - name: add fstab
+#    lineinfile: line='/var/lib/docker /mnt/docker bind defaults,bind 0 0' dest=/etc/fstab
+  - name: mount
+    command: mount -a
+  - name: copy Dockerfile
+    copy: src=../docker/server/Dockerfile dest=/home/vagrant/server/Dockerfile
+  - name: copy Dockerfile
+    copy: src=../docker/client/Dockerfile dest=/home/vagrant/client/Dockerfile
+  - name: copy docker-compose.yml
+    copy: src=../docker/docker-compose.yml dest=/home/vagrant/docker-compose.yml
+

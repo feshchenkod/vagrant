@@ -1,0 +1,18 @@
+---
+- hosts: all
+  gather_facts: false
+  sudo: yes
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  tasks:
+  - name: clone docker-bench-security
+    git:
+      clone: yes
+      repo: 'https://github.com/docker/docker-bench-security.git'
+      dest: /home/docker-bench-security
+  - name: run docker-bench-security
+    command: ./docker-bench-security.sh 
+    args:
+      chdir: /home/docker-bench-security/
+  - name: fetch log
+    fetch: src=/home/docker-bench-security/docker-bench-security.sh.log dest=../audit.log flat=yes

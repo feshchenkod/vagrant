@@ -1,0 +1,36 @@
+# -*- mode: ruby -*-
+# vim: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+	config.vm.define "ubuntu" do |subconfig|
+		subconfig.vm.box = "ubuntu/bionic64"
+		subconfig.vm.hostname="ubuntu"
+		subconfig.vm.network :private_network, ip: "192.168.56.12"
+		subconfig.vm.network "forwarded_port", guest:8088, host:8088
+		subconfig.vm.provider "virtualbox" do |vb|
+			vb.memory = "512"
+			vb.cpus = "1"
+			unless FileTest.exist?('./disk.vdi')
+				vb.customize ['createhd', '--filename', './disk.vdi', '--size', 1024]
+			end
+			vb.customize ['storageattach', :id,  '--storagectl', 'SCSI', '--port', 2, '--device', 0, '--type', 'hdd', '--medium', './disk.vdi']
+		end 
+		subconfig.vm.provision "ansible" do |ansible|
+        		ansible.playbook = "provision/server.yml"
+		        ansible.verbose = "vv"
+		end
+		subconfig.vm.provision :docker
+		subconfig.vm.provision "ansible" do |ansible|
+        		ansible.playbook = "provision/hard.yml"
+		        ansible.verbose = "vv"
+		end
+		subconfig.vm.provision :docker_compose,
+		yml: "/home/vagrant/docker-compose.yml", rebuild: true, run: "always"
+		subconfig.vm.provision "ansible" do |ansible|
+        		ansible.playbook = "provision/audit.yml"
+		        ansible.verbose = "vv"
+		end
+	end
+
+end
+
