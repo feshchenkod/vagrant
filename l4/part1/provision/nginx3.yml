@@ -1,0 +1,73 @@
+---
+- hosts: all
+  gather_facts: false
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/bin/python2.7
+  tasks:
+  - name: install epel-release
+    package:
+      name: epel-release
+      state: latest
+  - name: install nginx
+    package:
+      name: 
+        - nginx
+        - policycoreutils-python
+        - setools-console
+        - policycoreutils-devel
+        - selinux-policy-devel
+        - glibc
+        - glibc-common
+        - rpm-build
+      state: latest
+  - name: nginx custom port
+    replace:
+      path: /etc/nginx/nginx.conf
+      regexp: '80'
+      replace: '8088'
+  - name: mkdir docker
+    file: path=/home/vagrant/nginx state=directory
+  - name: generate policy
+    command: sepolgen -n nginx --application /usr/sbin/nginx -u user_u -u root
+    ignore_errors: yes
+    args:
+      chdir: /home/vagrant/nginx/
+  - name: change rules
+    blockinfile:
+      path: /home/vagrant/nginx/nginx.te
+      block: |
+        require {
+                attribute port_type;
+        };
+        type nginx_port_t;
+        typeattribute nginx_port_t port_type;
+        require {
+                type httpd_t;
+                type default_t;
+                class tcp_socket name_bind;
+                class file { read getattr open };
+        };
+        
+        #============= httpd_t ==============
+        allow httpd_t default_t:file { read getattr open };
+        allow httpd_t nginx_port_t:tcp_socket name_bind;
+  - name: install policy
+    command: "{{ item }}"
+    args:
+      chdir: /home/vagrant/nginx/
+    with_items:
+      - rm nginx.fc
+      - ./nginx.sh
+  - name: add port into nginx_port_t
+    seport:
+      ports: 8088
+      proto: tcp
+      setype: nginx_port_t
+      state: present
+  - name: restart nginx
+    systemd:
+      state: restarted
+      enabled: yes
+      name: nginx

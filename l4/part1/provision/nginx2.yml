@@ -1,0 +1,34 @@
+---
+- hosts: all
+  gather_facts: false
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/bin/python2.7
+  tasks:
+  - name: install epel-release
+    package:
+      name: epel-release
+      state: latest
+  - name: install nginx
+    package:
+      name: 
+        - nginx
+        - policycoreutils-python
+      state: latest
+  - name: nginx custom port
+    replace:
+      path: /etc/nginx/nginx.conf
+      regexp: '80'
+      replace: '8088'
+  - name: Allow Nginx to listen on tcp port 8088
+    seport:
+      ports: 8088
+      proto: tcp
+      setype: http_port_t
+      state: present
+  - name: restart nginx
+    systemd:
+      state: restarted
+      enabled: yes
+      name: nginx

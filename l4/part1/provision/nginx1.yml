@@ -1,0 +1,33 @@
+---
+- hosts: all
+  gather_facts: false
+  become: true
+  become_method: sudo
+  vars:
+    ansible_python_interpreter: /usr/bin/python2.7
+  tasks:
+  - name: install epel-release
+    package:
+      name: epel-release
+      state: latest
+  - name: install nginx
+    package:
+      name: 
+        - nginx
+        - libsemanage-python
+      state: latest
+  - name: nginx custom port
+    replace:
+      path: /etc/nginx/nginx.conf
+      regexp: '80'
+      replace: '8088'
+  - name: enable network in selinux
+    seboolean:
+      name: nis_enabled
+      state: yes
+      persistent: yes
+  - name: restart nginx
+    systemd:
+      state: restarted
+      enabled: yes
+      name: nginx
