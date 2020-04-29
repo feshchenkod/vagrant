@@ -1,0 +1,47 @@
+# -*- mode: ruby -*-
+# vim: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+#	config.vm.define "wazuh" do |subconfig|
+#		subconfig.vm.box = "ubuntu/xenial64"
+#		subconfig.vm.hostname="wazuh"
+#		subconfig.vm.network :private_network, ip: "192.168.56.11"
+#		subconfig.vm.network "forwarded_port", guest:5061, host:5061
+#		subconfig.vm.provider "virtualbox" do |vb|
+#			vb.memory = "4096"
+#			vb.cpus = "2"
+#		end 
+#		subconfig.vm.provision "ansible" do |ansible|
+#        		ansible.playbook = "provision/wazuh.yml"
+#		        ansible.verbose = "vv"
+#		end
+#	end
+        config.vm.define "client1" do |subconfig|
+                subconfig.vm.box = "ubuntu/xenial64"
+                subconfig.vm.hostname="client1"
+                subconfig.vm.network :private_network, ip: "192.168.56.12"
+                subconfig.vm.provider "virtualbox" do |vb|
+                        vb.memory = "512"
+                        vb.cpus = "1"
+                end
+                subconfig.vm.provision "ansible" do |ansible|
+                        ansible.playbook = "provision/agent.yml"
+                        ansible.verbose = "vv"
+                end
+        end
+        config.vm.define "client2" do |subconfig|
+                subconfig.vm.box = "ubuntu/xenial64"
+                subconfig.vm.hostname="client2"
+                subconfig.vm.network :private_network, ip: "192.168.56.13"
+                subconfig.vm.provider "virtualbox" do |vb|
+                        vb.memory = "512"
+                        vb.cpus = "1"
+                end
+                subconfig.vm.provision "ansible" do |ansible|
+                        ansible.playbook = "provision/agent.yml"
+                        ansible.verbose = "vv"
+                end
+        end
+
+end
+

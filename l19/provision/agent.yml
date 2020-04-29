@@ -1,0 +1,28 @@
+---
+- hosts: all
+  gather_facts: false
+  become: true
+  become_method: sudo
+  environment:
+    WAZUH_MANAGER: 192.168.56.11
+  tasks:
+  - name: install requirements
+    apt:
+      pkg:
+        - curl
+        - apt-transport-https
+        - lsb-release
+      state: latest
+  - name: Insall the GPG key
+    apt_key:
+      url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
+      state: present
+  - apt_repository:
+      repo: deb https://packages.wazuh.com/3.x/apt/ stable main
+      state: present
+  - name: install wazuh
+    apt:
+      pkg:
+        - wazuh-agent
+      state: latest
+      update_cache: yes
